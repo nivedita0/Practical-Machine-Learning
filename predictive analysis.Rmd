@@ -1,0 +1,92 @@
+---
+title: "Predictive analysis-exercise"
+author: "Nivedita M Nair"
+date: "October 11, 2020"
+output: html_document
+---
+## Overview
+
+The aim of this project is to predict the manner in which participants perform an exercise . The data is taken using devices such as Jawbone Up, Nike FuelBand, and Fitbit accelerometers placed on the belt, forearm, arm, and dumbell.  
+
+## 1. Data Preprocessing 
+
+Load the training and testing set from the online sources and then split the training set further into training and test sets. 
+
+```{r DataLoading}
+library(caret)
+trainURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainURL))
+testing <- read.csv(url(testURL)) #reading data
+
+label <- createDataPartition(training$classe, p = 0.7, list = FALSE) #slicing
+train <- training[label, ]
+test <- training[-label, ]
+```
+
+160 variables are present in the dataset, variables containing NA terms and zero variance need to be excluded from the dataset.
+
+```{r DataCleaning}
+NZV <- nearZeroVar(train) #zero variance
+train <- train[ ,-NZV]
+test <- test[ ,-NZV]
+label <- apply(train, 2, function(x) mean(is.na(x))) > 0.95
+train <- train[, -which(label, label == FALSE)]
+test <- test[, -which(label, label == FALSE)]
+train <- train[ , -(1:5)]
+test <- test[ , -c(1:5)]
+```
+
+As a result of the preprocessing steps, we were able to reduce 160 variables to 54.
+
+## Exploratory Analysis
+
+Dependence of the variables on each other is found using a correlation plot after dataset is cleaned. 
+
+```{r CorrelationPlot, fig.width=12, fig.height=8}
+library(corrplot)
+corrMat <- cor(train[,-54])
+corrplot(corrMat, method = "color", type = "lower", tl.cex = 0.8, tl.col = rgb(0,0,0))
+```
+
+In the plot above, darker gradient correspond to having high correlation. 
+
+## Prediction Model Selection
+
+We will use different methods to model the training set and thereby choose the one having the best accuracy to predict the outcome variable in the testing set. The methods are Decision Treeand Random Forest.
+At the end of each model, a confusion matrix is plotted to help visualize the analysis.
+
+### Decision Tree
+
+```{r DecisionTree, warning = FALSE, fig.width=18, fig.height=10}
+library(rpart)
+library(rpart.plot)
+library(rattle)
+set.seed(13908)
+modelDT <- rpart(classe ~ ., data = train, method = "class")
+fancyRpartPlot(modelDT)
+predictDT <- predict(modelDT, test, type = "class")
+confMatDT <- confusionMatrix(predictDT, test$classe)#for comparison package e1071
+confMatDT
+```
+
+### Random Forest
+
+```{r RandomForest}
+library(caret)
+#set.seed(13908)
+control <- trainControl(method = "cv", number = 3, verboseIter=FALSE)
+modelRF <- train(classe ~ ., data = train, method = "rf", trControl = control)
+predictRF <- predict(modelRF, test)
+confMatRF <- confusionMatrix(predictRF, test$classe)#for comparison
+confMatRF
+```
+
+As Random Forest offers the maximum accuracy of 99.75%, we will go with Random Forest Model to predict our test data class variable.
+
+## Predicting Test Set Output
+
+```{r TestSetPrediction}
+predictRF <- predict(modelRF, testing)
+predictRF
+```
